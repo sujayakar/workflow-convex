@@ -15,8 +15,10 @@ export const outcome = v.union(
 export default defineSchema({
   workflows: defineTable({
     startedAt: v.number(),
+    actionHandle: v.string(),
     args: v.any(),
 
+    // User visible workflow status.
     state: v.union(
       v.object({
         type: v.literal("running"),
@@ -28,10 +30,12 @@ export default defineSchema({
       }),
     ),
 
+    // Internal execution status.
     executing: v.boolean(),
     generationNumber: v.number(),
     lastHeartbeat: v.number(),
-  }),
+    sleepingUntil: v.optional(v.number()),
+  }).index("execution", ["executing", "lastHeartbeat"]),
 
   workflowJournal: defineTable({
     workflowId: v.id("workflows"),

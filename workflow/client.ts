@@ -9,6 +9,7 @@ import {
   RegisteredAction,
   GenericMutationCtx,
   FunctionReference,
+  createFunctionHandle,
 } from "convex/server";
 import { PropertyValidators, Validator } from "convex/values";
 import { ComponentClient, parentAction } from "./parentAction.js";
@@ -18,6 +19,8 @@ export interface WorkflowStep<DataModel extends GenericDataModel> {
     label: string,
     fn: (ctx: GenericActionCtx<DataModel>) => Promise<T>,
   ): Promise<T>;
+
+  sleep(ms: number): Promise<void>;
 }
 
 // export type RegisteredWorkflow<Args, Returns> = RegisteredAction<
@@ -34,6 +37,8 @@ export interface WorkflowStep<DataModel extends GenericDataModel> {
 //   W["__args"]
 // >;
 // type WorkflowArgs<T> = any;
+
+export type WorkflowId = string & { __isWorkflowId: true };
 
 export class WorkflowClient<DataModel extends GenericDataModel> {
   constructor(private client: ComponentClient) {}
@@ -66,14 +71,12 @@ export class WorkflowClient<DataModel extends GenericDataModel> {
     ctx: GenericMutationCtx<DataModel>,
     workflow: F,
     args: F["_args"],
-  ) {
+  ): Promise<WorkflowId> {
+    const handle = await createFunctionHandle(workflow);
     const workflowId = await ctx.runMutation(this.client.insertWorkflow, {
       args,
+      actionHandle: handle,
     });
-    const runArgs = {
-      workflowId,
-      generationNumber: 0,
-    };
-    await ctx.scheduler.runAfter(0, workflow, runArgs as any);
+    return workflowId as WorkflowId;
   }
 }

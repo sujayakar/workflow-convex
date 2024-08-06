@@ -10,8 +10,10 @@
  */
 
 import type * as client from "../client.js";
+import type * as crons from "../crons.js";
 import type * as index from "../index.js";
 import type * as parentAction from "../parentAction.js";
+import type * as recovery from "../recovery.js";
 
 import type { ApiFromModules, FunctionReference } from "convex/server";
 /**
@@ -24,6 +26,8 @@ import type { ApiFromModules, FunctionReference } from "convex/server";
  */
 declare const functions: ApiFromModules<{
   client: typeof client;
+  crons: typeof crons;
   index: typeof index;
   parentAction: typeof parentAction;
+  recovery: typeof recovery;
 }>;

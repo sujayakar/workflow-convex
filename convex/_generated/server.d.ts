@@ -177,10 +177,16 @@ export declare const app: {
       },
       any
     >;
+    heartbeatWorkflow: FunctionReference<
+      "mutation",
+      "internal",
+      { generationNumber: number; now: number; workflowId: string },
+      any
+    >;
     insertWorkflow: FunctionReference<
       "mutation",
       "internal",
-      { args: any },
+      { actionHandle: string; args: any },
       any
     >;
     loadJournal: FunctionReference<
@@ -201,6 +207,15 @@ export declare const app: {
       },
       string
     >;
+    putWorkflowToSleep: FunctionReference<
+      "mutation",
+      "internal",
+      { generationNumber: number; until: number; workflowId: string },
+      any
+    >;
+    recovery: {
+      recover: FunctionReference<"mutation", "internal", any, any>;
+    };
     startWorkflow: FunctionReference<
       "mutation",
       "internal",

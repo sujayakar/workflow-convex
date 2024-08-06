@@ -1,30 +1,36 @@
 // TODO:
-// [ ] Use a function handle to move calling into action into the component//
-// [ ] Sleep
-//
 // [ ] Easier typesafety for client constructor
 // [ ] Cancelation
 // [ ] Preemption for idempotent steps
-// [ ] Recovery
-// [ ] Heartbeats
 
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { outcome } from "./schema";
+import { FunctionHandle } from "convex/server";
 
 export const insertWorkflow = mutation({
   args: {
+    actionHandle: v.string(),
     args: v.any(),
   },
   handler: async (ctx, args) => {
     const workflowId = await ctx.db.insert("workflows", {
       startedAt: Date.now(),
+      actionHandle: args.actionHandle,
       args: args.args,
       state: { type: "running" },
       executing: false,
       generationNumber: 0,
       lastHeartbeat: Date.now(),
     });
+    await ctx.scheduler.runAfter(
+      0,
+      args.actionHandle as FunctionHandle<"action", any, any>,
+      {
+        workflowId,
+        generationNumber: 0,
+      },
+    );
     return workflowId;
   },
 });
@@ -49,11 +55,70 @@ export const startWorkflow = mutation({
     if (workflow.executing) {
       throw new Error(`Workflow already executing: ${args.workflowId}`);
     }
+    if (workflow.sleepingUntil && workflow.sleepingUntil <= args.now) {
+      delete workflow.sleepingUntil;
+    }
     workflow.executing = true;
     workflow.lastHeartbeat = args.now;
     await ctx.db.replace(workflow._id, workflow);
 
     return workflow;
+  },
+});
+
+export const putWorkflowToSleep = mutation({
+  args: {
+    workflowId: v.id("workflows"),
+    generationNumber: v.number(),
+    until: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const workflow = await ctx.db.get(args.workflowId);
+    if (!workflow) {
+      throw new Error(`Workflow not found: ${args.workflowId}`);
+    }
+    if (workflow.generationNumber !== args.generationNumber) {
+      throw new Error(`Invalid generation number: ${args.generationNumber}`);
+    }
+    if (workflow.state.type != "running") {
+      throw new Error(`Workflow not running: ${args.workflowId}`);
+    }
+    if (!workflow.executing) {
+      throw new Error(`Workflow not executing: ${args.workflowId}`);
+    }
+    workflow.executing = false;
+    workflow.sleepingUntil = args.until;
+    await ctx.db.replace(workflow._id, workflow);
+    await ctx.scheduler.runAt(
+      args.until,
+      workflow.actionHandle as FunctionHandle<"action", any, any>,
+      {
+        workflowId: args.workflowId,
+        generationNumber: args.generationNumber,
+      },
+    );
+  },
+});
+
+export const heartbeatWorkflow = mutation({
+  args: {
+    workflowId: v.id("workflows"),
+    generationNumber: v.number(),
+    now: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const workflow = await ctx.db.get(args.workflowId);
+    if (!workflow) {
+      throw new Error(`Workflow not found: ${args.workflowId}`);
+    }
+    if (workflow.generationNumber !== args.generationNumber) {
+      throw new Error(`Invalid generation number: ${args.generationNumber}`);
+    }
+    if (workflow.state.type != "running") {
+      throw new Error(`Workflow not running: ${args.workflowId}`);
+    }
+    workflow.lastHeartbeat = args.now;
+    await ctx.db.replace(workflow._id, workflow);
   },
 });
 

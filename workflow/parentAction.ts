@@ -1,12 +1,12 @@
 import { actionGeneric } from "convex/server";
 import type {
+  FunctionHandle,
   FunctionReference,
   GenericActionCtx,
   GenericDataModel,
 } from "convex/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { BaseChannel } from "async-channel";
-import { insertWorkflow } from ".";
 
 export function parentAction(client: ComponentClient, registered: any) {
   return actionGeneric({
@@ -19,12 +19,24 @@ export function parentAction(client: ComponentClient, registered: any) {
       ) {
         throw new Error(`Workflow run incorrectly, use client`);
       }
+      const now = Date.now();
       const workflow = await ctx.runMutation(client.startWorkflow, {
         workflowId,
         generationNumber,
-        now: Date.now(),
+        now,
       });
       if (workflow.state.type === "completed") {
+        return;
+      }
+      if (workflow.sleepingUntil && now < workflow.sleepingUntil) {
+        console.log(
+          `Workflow ${args.workflowId} is sleeping until ${workflow.sleepingUntil}`,
+        );
+        await ctx.runMutation(client.putWorkflowToSleep, {
+          workflowId,
+          generationNumber,
+          until: workflow.sleepingUntil,
+        });
         return;
       }
 
@@ -40,6 +52,7 @@ export function parentAction(client: ComponentClient, registered: any) {
         client,
         journalEntries,
         channel,
+        now,
       );
 
       const handlerWorker = async (): Promise<WorkerResult> => {
@@ -54,10 +67,25 @@ export function parentAction(client: ComponentClient, registered: any) {
         return { type: "handlerDone", outcome };
       };
       const executorWorker = async (): Promise<WorkerResult> => {
-        await executor.run();
-        return { type: "executorDone" };
+        const sleepUntil = await executor.run();
+        return { type: "executorDone", duration: sleepUntil };
       };
-      const result = await Promise.race([handlerWorker(), executorWorker()]);
+      const heartbeatWorker = async (): Promise<WorkerResult> => {
+        while (true) {
+          await new Promise((resolve) => setTimeout(resolve, 10 * 1000));
+          await ctx.runMutation(client.heartbeatWorkflow, {
+            workflowId,
+            generationNumber,
+            now: Date.now(),
+          });
+        }
+      };
+
+      const result = await Promise.race([
+        handlerWorker(),
+        executorWorker(),
+        heartbeatWorker(),
+      ]);
       switch (result.type) {
         case "handlerDone": {
           await ctx.runMutation(client.completeWorkflow, {
@@ -69,7 +97,12 @@ export function parentAction(client: ComponentClient, registered: any) {
           return;
         }
         case "executorDone": {
-          throw new Error(`TODO: executorDone`);
+          await ctx.runMutation(client.putWorkflowToSleep, {
+            workflowId,
+            generationNumber,
+            until: Date.now() + result.duration,
+          });
+          return;
         }
       }
     },
@@ -82,15 +115,21 @@ class Step {
   async run<T>(label: string, fn: (ctx: any) => Promise<T>): Promise<T> {
     let send: any;
     const p = new Promise<T>((resolve, reject) => {
-      const msg = { label, fn, resolve, reject };
-      send = this.sender.push(msg);
+      send = this.sender.push({ type: "step", label, fn, resolve, reject });
     });
     await send;
     return p;
   }
+
+  async sleep(duration: number): Promise<void> {
+    await this.run(`sleep:${duration}`, async () => {
+      throw new Error(`Unexpected call into sleep callback`);
+    });
+  }
 }
 
 type RunStep = {
+  type: "step";
   label: string;
   fn: (ctx: any) => Promise<any>;
   resolve: (result: any) => void;
@@ -103,7 +142,7 @@ type Result<T> =
 
 type WorkerResult =
   | { type: "handlerDone"; outcome: Result<any> }
-  | { type: "executorDone" };
+  | { type: "executorDone"; duration: number };
 
 class StepExecutor {
   private nextStepNumber: number;
@@ -115,13 +154,15 @@ class StepExecutor {
     private client: ComponentClient,
     private journalEntries: Array<Doc<"workflowJournal">>,
     private receiver: BaseChannel<RunStep>,
+    private now: number,
   ) {
     this.nextStepNumber = journalEntries.length;
   }
 
-  async run() {
+  async run(): Promise<number> {
     while (true) {
       const msg = await this.receiver.get();
+
       const entry = this.journalEntries.shift();
       if (!entry) {
         // Push new journal entry.
@@ -138,6 +179,13 @@ class StepExecutor {
           },
         );
         // Start executing
+        if (msg.label.startsWith("sleep:")) {
+          const duration = parseInt(msg.label.slice(6));
+          if (duration <= 0) {
+            throw new Error(`Invalid sleep duration: ${duration}`);
+          }
+          return duration;
+        }
         let outcome: Result<any>;
         try {
           const result = await msg.fn(this.ctx);
@@ -162,6 +210,25 @@ class StepExecutor {
       } else {
         if (entry.stepLabel !== msg.label) {
           throw new Error(`TODO: journal entry label mismatch?`);
+        }
+        if (
+          entry.stepLabel.startsWith("sleep:") &&
+          entry.state.type === "running"
+        ) {
+          const duration = parseInt(entry.stepLabel.slice(6));
+          const deadline = entry.startedAt + duration;
+          if (this.now <= deadline) {
+            return deadline - this.now;
+          }
+          await this.ctx.runMutation(this.client.completeJournalEntry, {
+            workflowId: this.workflowId,
+            generationNumber: this.generationNumber,
+            journalId: entry._id,
+            outcome: { type: "success", result: null },
+            now: Date.now(),
+          });
+          msg.resolve(undefined);
+          continue;
         }
         if (entry.state.type === "running") {
           throw new Error(`TODO: journal entry still running?`);
@@ -229,5 +296,30 @@ export type ComponentClient = {
     { generationNumber: number; now: number; workflowId: string },
     any
   >;
-  insertWorkflow: FunctionReference<"mutation", "internal", { args: any }, any>;
+  insertWorkflow: FunctionReference<
+    "mutation",
+    "internal",
+    { actionHandle: string; args: any },
+    any
+  >;
+  heartbeatWorkflow: FunctionReference<
+    "mutation",
+    "internal",
+    {
+      generationNumber: number;
+      now: number;
+      workflowId: string;
+    },
+    any
+  >;
+  putWorkflowToSleep: FunctionReference<
+    "mutation",
+    "internal",
+    {
+      generationNumber: number;
+      until: number;
+      workflowId: string;
+    },
+    any
+  >;
 };

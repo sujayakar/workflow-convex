@@ -15,6 +15,10 @@ export const experiment = workflow.define({
   },
   returns: v.null(),
   handler: async (step, args) => {
+    // You can put the workflow to sleep for as long as you'd like!
+    await step.sleep(10 * 1000);
+
+    // Execute steps inline with a regular action ctx.
     const transcription = await step.run(
       "computeTranscription",
       async (ctx) => {
@@ -34,6 +38,7 @@ export const experiment = workflow.define({
         return transcription.text;
       },
     );
+
     const embedding = await step.run("computeEmbedding", async (ctx) => {
       const embedding = await openai.embeddings.create({
         model: "text-embedding-ada-002",
@@ -41,6 +46,7 @@ export const experiment = workflow.define({
       });
       return embedding.data[0].embedding;
     });
+
     console.log(embedding);
     return null;
   },
