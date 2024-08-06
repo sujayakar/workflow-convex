@@ -149,5 +149,63 @@ export type DatabaseReader = GenericDatabaseReader<DataModel>;
 export type DatabaseWriter = GenericDatabaseWriter<DataModel>;
 
 export declare const app: {
-  workflow: {};
+  workflow: {
+    completeJournalEntry: FunctionReference<
+      "mutation",
+      "internal",
+      {
+        generationNumber: number;
+        journalId: string;
+        now: number;
+        outcome:
+          | { result: any; type: "success" }
+          | { error: string; type: "error" };
+        workflowId: string;
+      },
+      any
+    >;
+    completeWorkflow: FunctionReference<
+      "mutation",
+      "internal",
+      {
+        generationNumber: number;
+        now: number;
+        outcome:
+          | { result: any; type: "success" }
+          | { error: string; type: "error" };
+        workflowId: string;
+      },
+      any
+    >;
+    insertWorkflow: FunctionReference<
+      "mutation",
+      "internal",
+      { args: any },
+      any
+    >;
+    loadJournal: FunctionReference<
+      "query",
+      "internal",
+      { generationNumber: number; workflowId: string },
+      any
+    >;
+    pushJournalEntry: FunctionReference<
+      "mutation",
+      "internal",
+      {
+        generationNumber: number;
+        startedAt: number;
+        stepLabel: string;
+        stepNumber: number;
+        workflowId: string;
+      },
+      string
+    >;
+    startWorkflow: FunctionReference<
+      "mutation",
+      "internal",
+      { generationNumber: number; now: number; workflowId: string },
+      any
+    >;
+  };
 };

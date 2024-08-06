@@ -9,6 +9,10 @@
  * @module
  */
 
+import type * as client from "../client.js";
+import type * as index from "../index.js";
+import type * as parentAction from "../parentAction.js";
+
 import type { ApiFromModules, FunctionReference } from "convex/server";
 /**
  * A utility for referencing Convex functions in your app's API.
@@ -18,4 +22,8 @@ import type { ApiFromModules, FunctionReference } from "convex/server";
  * const myFunctionReference = functions.myModule.myFunction;
  * ```
  */
-declare const functions: ApiFromModules<{}>;
+declare const functions: ApiFromModules<{
+  client: typeof client;
+  index: typeof index;
+  parentAction: typeof parentAction;
+}>;

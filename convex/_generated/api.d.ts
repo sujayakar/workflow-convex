@@ -9,9 +9,6 @@
  * @module
  */
 
-import type * as async_channel from "../async_channel.js";
-import type * as experiment from "../experiment.js";
-import type * as experiment2 from "../experiment2.js";
 import type * as experiment3 from "../experiment3.js";
 import type * as http from "../http.js";
 import type * as messages from "../messages.js";
@@ -30,9 +27,6 @@ import type {
  * ```
  */
 declare const fullApi: ApiFromModules<{
-  async_channel: typeof async_channel;
-  experiment: typeof experiment;
-  experiment2: typeof experiment2;
   experiment3: typeof experiment3;
   http: typeof http;
   messages: typeof messages;
