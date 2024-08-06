@@ -16,6 +16,7 @@ export const experiment = workflow.define({
   returns: v.null(),
   handler: async (step, args) => {
     // You can put the workflow to sleep for as long as you'd like!
+    // This is just 10s, but you can make it days, months, etc.
     await step.sleep(10 * 1000);
 
     // Execute steps inline with a regular action ctx.
@@ -26,8 +27,6 @@ export const experiment = workflow.define({
         if (!blob) {
           throw new Error(`Invalid storage ID: ${args.storageId}`);
         }
-        // NB: We have to pass in a `File` object here, since the OpenAI SDK
-        // looks at its filename to determine the file type.
         const file = new File([blob], `${args.storageId}.mp3`, {
           type: "audio/mpeg",
         });
