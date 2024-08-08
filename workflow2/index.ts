@@ -1,3 +1,12 @@
+// TODO:
+// [ ] Progress indication
+// [ ] Cancelation
+// [ ] Retries for actions
+// [ ] Signal if retriable / num retries / etc.
+// [ ] Preemption for idempotent steps
+// [ ] Capture logs
+// [ ] Determinism: Date.now(), Math.random(), etc.
+
 import { v } from "convex/values";
 import { action, mutation, query } from "./_generated/server";
 import { functions } from "./_generated/api";
@@ -288,7 +297,6 @@ export const completeFunction = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    console.log("completeFunction", args);
     const workflow = await ctx.db.get(args.workflowId as Id<"workflows">);
     if (!workflow) {
       throw new Error(`Workflow not found: ${args.workflowId}`);
