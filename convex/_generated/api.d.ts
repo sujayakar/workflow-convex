@@ -10,6 +10,7 @@
  */
 
 import type * as experiment3 from "../experiment3.js";
+import type * as experiment4 from "../experiment4.js";
 import type * as http from "../http.js";
 import type * as messages from "../messages.js";
 
@@ -28,6 +29,7 @@ import type {
  */
 declare const fullApi: ApiFromModules<{
   experiment3: typeof experiment3;
+  experiment4: typeof experiment4;
   http: typeof http;
   messages: typeof messages;
 }>;

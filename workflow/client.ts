@@ -5,7 +5,6 @@ import {
   ArgsArrayToObject,
   GenericDataModel,
   GenericActionCtx,
-  DefaultFunctionArgs,
   RegisteredAction,
   GenericMutationCtx,
   FunctionReference,
