@@ -20,7 +20,6 @@ import {
   Workflow,
   workflowDocument,
 } from "./schema";
-import { Id } from "./_generated/dataModel";
 import { Result } from "./client";
 
 export const createWorkflow = mutation({
@@ -56,7 +55,11 @@ export const loadWorkflow = query({
   },
   returns: workflowDocument,
   handler: async (ctx, args) => {
-    const workflow = await ctx.db.get(args.workflowId as Id<"workflows">);
+    const workflowId = ctx.db.normalizeId("workflows", args.workflowId);
+    if (!workflowId) {
+      throw new Error(`Invalid workflow ID: ${args.workflowId}`);
+    }
+    const workflow = await ctx.db.get(workflowId);
     if (!workflow) {
       throw new Error(`Workflow not found: ${args.workflowId}`);
     }
@@ -73,15 +76,19 @@ export const completeWorkflow = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const workflow = await ctx.db.get(args.workflowId as Id<"workflows">);
+    const workflowId = ctx.db.normalizeId("workflows", args.workflowId);
+    if (!workflowId) {
+      throw new Error(`Invalid workflow ID: ${args.workflowId}`);
+    }
+    const workflow = await ctx.db.get(workflowId);
     if (!workflow) {
-      throw new Error(`Workflow not found: ${args.workflowId}`);
+      throw new Error(`Workflow not found: ${workflowId}`);
     }
     if (workflow.generationNumber !== args.generationNumber) {
       throw new Error(`Invalid generation number: ${args.generationNumber}`);
     }
     if (workflow.state.type !== "running") {
-      throw new Error(`Workflow not running: ${args.workflowId}`);
+      throw new Error(`Workflow not running: ${workflowId}`);
     }
     workflow.state = {
       type: "completed",
@@ -98,6 +105,10 @@ export const workflowBlockedBy = query({
   },
   returns: v.union(journalDocument, v.null()),
   handler: async (ctx, args) => {
+    const workflowId = ctx.db.normalizeId("workflows", args.workflowId);
+    if (!workflowId) {
+      throw new Error(`Invalid workflow ID: ${args.workflowId}`);
+    }
     const result = [];
     for (const stepType of STEP_TYPES) {
       const inProgressEntries = await ctx.db
@@ -106,7 +117,7 @@ export const workflowBlockedBy = query({
           q
             .eq("step.type", stepType)
             .eq("step.inProgress", true)
-            .eq("workflowId", args.workflowId as Id<"workflows">),
+            .eq("workflowId", args.workflowId),
         )
         .collect();
       result.push(...inProgressEntries);
@@ -124,18 +135,20 @@ export const loadJournal = query({
   },
   returns: v.array(journalDocument),
   handler: async (ctx, args) => {
-    const workflow = await ctx.db.get(args.workflowId as Id<"workflows">);
+    const workflowId = ctx.db.normalizeId("workflows", args.workflowId);
+    if (!workflowId) {
+      throw new Error(`Invalid workflow ID: ${args.workflowId}`);
+    }
+    const workflow = await ctx.db.get(workflowId);
     if (!workflow) {
-      throw new Error(`Workflow not found: ${args.workflowId}`);
+      throw new Error(`Workflow not found: ${workflowId}`);
     }
     if (workflow.state.type != "running") {
-      throw new Error(`Workflow not running: ${args.workflowId}`);
+      throw new Error(`Workflow not running: ${workflowId}`);
     }
     const entries = await ctx.db
       .query("workflowJournal")
-      .withIndex("workflow", (q) =>
-        q.eq("workflowId", args.workflowId as Id<"workflows">),
-      )
+      .withIndex("workflow", (q) => q.eq("workflowId", workflowId))
       .collect();
     return entries as JournalEntry[];
   },
@@ -149,39 +162,39 @@ export const pushJournalEntry = mutation({
   },
   returns: journalDocument,
   handler: async (ctx, args) => {
+    const workflowId = ctx.db.normalizeId("workflows", args.workflowId);
+    if (!workflowId) {
+      throw new Error(`Invalid workflow ID: ${args.workflowId}`);
+    }
     if (!args.step.inProgress) {
       throw new Error(`Assertion failed: not in progress`);
     }
-    const workflow = await ctx.db.get(args.workflowId as Id<"workflows">);
+    const workflow = await ctx.db.get(workflowId);
     if (!workflow) {
-      throw new Error(`Workflow not found: ${args.workflowId}`);
+      throw new Error(`Workflow not found: ${workflowId}`);
     }
     if (workflow.state.type != "running") {
-      throw new Error(`Workflow not running: ${args.workflowId}`);
+      throw new Error(`Workflow not running: ${workflowId}`);
     }
     const existing = await ctx.db
       .query("workflowJournal")
       .withIndex("workflow", (q) =>
-        q
-          .eq("workflowId", args.workflowId as Id<"workflows">)
-          .eq("stepNumber", args.stepNumber),
+        q.eq("workflowId", workflowId).eq("stepNumber", args.stepNumber),
       )
       .first();
     if (existing) {
-      throw new Error(`Journal entry already exists: ${args.workflowId}`);
+      throw new Error(`Journal entry already exists: ${workflowId}`);
     }
     const maxEntry = await ctx.db
       .query("workflowJournal")
-      .withIndex("workflow", (q) =>
-        q.eq("workflowId", args.workflowId as Id<"workflows">),
-      )
+      .withIndex("workflow", (q) => q.eq("workflowId", workflowId))
       .order("desc")
       .first();
     if (maxEntry && maxEntry.stepNumber + 1 !== args.stepNumber) {
       throw new Error(`Invalid step number: ${args.stepNumber}`);
     }
     const journalId = await ctx.db.insert("workflowJournal", {
-      workflowId: args.workflowId as Id<"workflows">,
+      workflowId,
       stepNumber: args.stepNumber,
       step: args.step,
     });
@@ -198,30 +211,36 @@ export const completeSleep = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const workflow = await ctx.db.get(args.workflowId as Id<"workflows">);
+    const workflowId = ctx.db.normalizeId("workflows", args.workflowId);
+    if (!workflowId) {
+      throw new Error(`Invalid workflow ID: ${args.workflowId}`);
+    }
+    const journalId = ctx.db.normalizeId("workflowJournal", args.journalId);
+    if (!journalId) {
+      throw new Error(`Invalid journal ID: ${args.journalId}`);
+    }
+    const workflow = await ctx.db.get(workflowId);
     if (!workflow) {
-      throw new Error(`Workflow not found: ${args.workflowId}`);
+      throw new Error(`Workflow not found: ${workflowId}`);
     }
     if (workflow.generationNumber !== args.generationNumber) {
       throw new Error(`Invalid generation number: ${args.generationNumber}`);
     }
     if (workflow.state.type != "running") {
-      throw new Error(`Workflow not running: ${args.workflowId}`);
+      throw new Error(`Workflow not running: ${workflowId}`);
     }
-    const journalEntry = await ctx.db.get(
-      args.journalId as Id<"workflowJournal">,
-    );
+    const journalEntry = await ctx.db.get(journalId);
     if (!journalEntry) {
-      throw new Error(`Journal entry not found: ${args.journalId}`);
+      throw new Error(`Journal entry not found: ${journalId}`);
     }
-    if (journalEntry.workflowId !== args.workflowId) {
-      throw new Error(`Journal entry not for this workflow: ${args.journalId}`);
+    if (journalEntry.workflowId !== workflowId) {
+      throw new Error(`Journal entry not for this workflow: ${journalId}`);
     }
     if (journalEntry.step.type !== "sleep") {
-      throw new Error(`Journal entry not a sleep: ${args.journalId}`);
+      throw new Error(`Journal entry not a sleep: ${journalId}`);
     }
     if (!journalEntry.step.inProgress) {
-      throw new Error(`Journal entry not in progress: ${args.journalId}`);
+      throw new Error(`Journal entry not in progress: ${journalId}`);
     }
     journalEntry.step.inProgress = false;
     await ctx.db.replace(journalEntry._id, journalEntry);
@@ -249,33 +268,20 @@ export const runFunction = action({
   returns: v.null(),
   handler: async (ctx, args) => {
     let outcome: Result<any>;
+    const runner: any = {
+      query: ctx.runQuery,
+      mutation: ctx.runMutation,
+      action: ctx.runAction,
+    }[args.functionType];
+    if (!runner) {
+      throw new Error(`Invalid function type: ${args.functionType}`);
+    }
     try {
-      switch (args.functionType) {
-        case "query": {
-          const result = await ctx.runQuery(
-            args.handle as FunctionHandle<"query", any>,
-            args.args,
-          );
-          outcome = { type: "success", result };
-          break;
-        }
-        case "mutation": {
-          const result = await ctx.runMutation(
-            args.handle as FunctionHandle<"mutation", any>,
-            args.args,
-          );
-          outcome = { type: "success", result };
-          break;
-        }
-        case "action": {
-          const result = await ctx.runAction(
-            args.handle as FunctionHandle<"action", any>,
-            args.args,
-          );
-          outcome = { type: "success", result };
-          break;
-        }
-      }
+      const result = await runner(
+        args.handle as FunctionHandle<any, any>,
+        args.args,
+      );
+      outcome = { type: "success", result };
     } catch (error: any) {
       outcome = { type: "error", error: error.message };
     }
@@ -297,37 +303,43 @@ export const completeFunction = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const workflow = await ctx.db.get(args.workflowId as Id<"workflows">);
+    const workflowId = ctx.db.normalizeId("workflows", args.workflowId);
+    if (!workflowId) {
+      throw new Error(`Invalid workflow ID: ${args.workflowId}`);
+    }
+    const journalId = ctx.db.normalizeId("workflowJournal", args.journalId);
+    if (!journalId) {
+      throw new Error(`Invalid journal ID: ${args.journalId}`);
+    }
+    const workflow = await ctx.db.get(workflowId);
     if (!workflow) {
-      throw new Error(`Workflow not found: ${args.workflowId}`);
+      throw new Error(`Workflow not found: ${workflowId}`);
     }
     if (workflow.generationNumber !== args.generationNumber) {
       throw new Error(`Invalid generation number: ${args.generationNumber}`);
     }
     if (workflow.state.type != "running") {
-      throw new Error(`Workflow not running: ${args.workflowId}`);
+      throw new Error(`Workflow not running: ${workflowId}`);
     }
-    const journalEntry = await ctx.db.get(
-      args.journalId as Id<"workflowJournal">,
-    );
+    const journalEntry = await ctx.db.get(journalId);
     if (!journalEntry) {
-      throw new Error(`Journal entry not found: ${args.journalId}`);
+      throw new Error(`Journal entry not found: ${journalId}`);
     }
     if (journalEntry.workflowId !== args.workflowId) {
-      throw new Error(`Journal entry not for this workflow: ${args.journalId}`);
+      throw new Error(`Journal entry not for this workflow: ${journalId}`);
     }
     if (journalEntry.step.type !== "function") {
-      throw new Error(`Journal entry not a function: ${args.journalId}`);
+      throw new Error(`Journal entry not a function: ${journalId}`);
     }
     if (!journalEntry.step.inProgress) {
-      throw new Error(`Journal entry not in progress: ${args.journalId}`);
+      throw new Error(`Journal entry not in progress: ${journalId}`);
     }
     journalEntry.step.inProgress = false;
     journalEntry.step.outcome = args.outcome;
     journalEntry.step.completedAt = Date.now();
     await ctx.db.replace(journalEntry._id, journalEntry);
     await ctx.runMutation(workflow.workflowHandle as any, {
-      workflowId: args.workflowId,
+      workflowId,
       generationNumber: args.generationNumber,
     });
   },
