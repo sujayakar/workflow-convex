@@ -10,7 +10,7 @@
  */
 
 import type * as client from "../client.js";
-import type * as index from "../index.js";
+import type * as ops from "../ops.js";
 
 import type { ApiFromModules, FunctionReference } from "convex/server";
 /**
@@ -23,5 +23,5 @@ import type { ApiFromModules, FunctionReference } from "convex/server";
  */
 declare const functions: ApiFromModules<{
   client: typeof client;
-  index: typeof index;
+  ops: typeof ops;
 }>;

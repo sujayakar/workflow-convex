@@ -285,7 +285,7 @@ export const runFunction = action({
     } catch (error: any) {
       outcome = { type: "error", error: error.message };
     }
-    await ctx.runMutation(functions.index.completeFunction, {
+    await ctx.runMutation(functions.ops.completeFunction, {
       workflowId: args.workflowId,
       generationNumber: args.generationNumber,
       journalId: args.journalId,

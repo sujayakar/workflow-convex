@@ -224,190 +224,192 @@ export declare const app: {
     >;
   };
   workflow2: {
-    completeFunction: FunctionReference<
-      "mutation",
-      "internal",
-      {
-        generationNumber: number;
-        journalId: string;
-        outcome:
-          | { result: any; type: "success" }
-          | { error: string; type: "error" };
-        workflowId: string;
-      },
-      null
-    >;
-    completeSleep: FunctionReference<
-      "mutation",
-      "internal",
-      { generationNumber: number; journalId: string; workflowId: string },
-      null
-    >;
-    completeWorkflow: FunctionReference<
-      "mutation",
-      "internal",
-      {
-        generationNumber: number;
-        now: number;
-        outcome:
-          | { result: any; type: "success" }
-          | { error: string; type: "error" };
-        workflowId: string;
-      },
-      null
-    >;
-    createWorkflow: FunctionReference<
-      "mutation",
-      "internal",
-      { workflowArgs: any; workflowHandle: string },
-      string
-    >;
-    loadJournal: FunctionReference<
-      "query",
-      "internal",
-      { workflowId: string },
-      Array<{
-        _creationTime: number;
-        _id: string;
-        step:
-          | {
-              args: any;
-              completedAt?: number;
-              functionType: "query" | "mutation" | "action";
-              handle: string;
-              inProgress: boolean;
-              outcome?:
-                | { result: any; type: "success" }
-                | { error: string; type: "error" };
-              startedAt: number;
-              type: "function";
-            }
-          | {
-              deadline: number;
-              durationMs: number;
-              inProgress: boolean;
-              type: "sleep";
-            };
-        stepNumber: number;
-        workflowId: string;
-      }>
-    >;
-    loadWorkflow: FunctionReference<
-      "query",
-      "internal",
-      { workflowId: string },
-      {
-        _creationTime: number;
-        _id: string;
-        args: any;
-        generationNumber: number;
-        startedAt: number;
-        state:
-          | { type: "running" }
-          | {
-              completedAt: number;
-              outcome:
-                | { result: any; type: "success" }
-                | { error: string; type: "error" };
-              type: "completed";
-            };
-        workflowHandle: string;
-      }
-    >;
-    pushJournalEntry: FunctionReference<
-      "mutation",
-      "internal",
-      {
-        step:
-          | {
-              args: any;
-              completedAt?: number;
-              functionType: "query" | "mutation" | "action";
-              handle: string;
-              inProgress: boolean;
-              outcome?:
-                | { result: any; type: "success" }
-                | { error: string; type: "error" };
-              startedAt: number;
-              type: "function";
-            }
-          | {
-              deadline: number;
-              durationMs: number;
-              inProgress: boolean;
-              type: "sleep";
-            };
-        stepNumber: number;
-        workflowId: string;
-      },
-      {
-        _creationTime: number;
-        _id: string;
-        step:
-          | {
-              args: any;
-              completedAt?: number;
-              functionType: "query" | "mutation" | "action";
-              handle: string;
-              inProgress: boolean;
-              outcome?:
-                | { result: any; type: "success" }
-                | { error: string; type: "error" };
-              startedAt: number;
-              type: "function";
-            }
-          | {
-              deadline: number;
-              durationMs: number;
-              inProgress: boolean;
-              type: "sleep";
-            };
-        stepNumber: number;
-        workflowId: string;
-      }
-    >;
-    runFunction: FunctionReference<
-      "action",
-      "internal",
-      {
-        args: any;
-        functionType: "query" | "mutation" | "action";
-        generationNumber: number;
-        handle: string;
-        journalId: string;
-        workflowId: string;
-      },
-      null
-    >;
-    workflowBlockedBy: FunctionReference<
-      "query",
-      "internal",
-      { workflowId: string },
-      {
-        _creationTime: number;
-        _id: string;
-        step:
-          | {
-              args: any;
-              completedAt?: number;
-              functionType: "query" | "mutation" | "action";
-              handle: string;
-              inProgress: boolean;
-              outcome?:
-                | { result: any; type: "success" }
-                | { error: string; type: "error" };
-              startedAt: number;
-              type: "function";
-            }
-          | {
-              deadline: number;
-              durationMs: number;
-              inProgress: boolean;
-              type: "sleep";
-            };
-        stepNumber: number;
-        workflowId: string;
-      } | null
-    >;
+    ops: {
+      completeFunction: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          generationNumber: number;
+          journalId: string;
+          outcome:
+            | { result: any; type: "success" }
+            | { error: string; type: "error" };
+          workflowId: string;
+        },
+        null
+      >;
+      completeSleep: FunctionReference<
+        "mutation",
+        "internal",
+        { generationNumber: number; journalId: string; workflowId: string },
+        null
+      >;
+      completeWorkflow: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          generationNumber: number;
+          now: number;
+          outcome:
+            | { result: any; type: "success" }
+            | { error: string; type: "error" };
+          workflowId: string;
+        },
+        null
+      >;
+      createWorkflow: FunctionReference<
+        "mutation",
+        "internal",
+        { workflowArgs: any; workflowHandle: string },
+        string
+      >;
+      loadJournal: FunctionReference<
+        "query",
+        "internal",
+        { workflowId: string },
+        Array<{
+          _creationTime: number;
+          _id: string;
+          step:
+            | {
+                args: any;
+                completedAt?: number;
+                functionType: "query" | "mutation" | "action";
+                handle: string;
+                inProgress: boolean;
+                outcome?:
+                  | { result: any; type: "success" }
+                  | { error: string; type: "error" };
+                startedAt: number;
+                type: "function";
+              }
+            | {
+                deadline: number;
+                durationMs: number;
+                inProgress: boolean;
+                type: "sleep";
+              };
+          stepNumber: number;
+          workflowId: string;
+        }>
+      >;
+      loadWorkflow: FunctionReference<
+        "query",
+        "internal",
+        { workflowId: string },
+        {
+          _creationTime: number;
+          _id: string;
+          args: any;
+          generationNumber: number;
+          startedAt: number;
+          state:
+            | { type: "running" }
+            | {
+                completedAt: number;
+                outcome:
+                  | { result: any; type: "success" }
+                  | { error: string; type: "error" };
+                type: "completed";
+              };
+          workflowHandle: string;
+        }
+      >;
+      pushJournalEntry: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          step:
+            | {
+                args: any;
+                completedAt?: number;
+                functionType: "query" | "mutation" | "action";
+                handle: string;
+                inProgress: boolean;
+                outcome?:
+                  | { result: any; type: "success" }
+                  | { error: string; type: "error" };
+                startedAt: number;
+                type: "function";
+              }
+            | {
+                deadline: number;
+                durationMs: number;
+                inProgress: boolean;
+                type: "sleep";
+              };
+          stepNumber: number;
+          workflowId: string;
+        },
+        {
+          _creationTime: number;
+          _id: string;
+          step:
+            | {
+                args: any;
+                completedAt?: number;
+                functionType: "query" | "mutation" | "action";
+                handle: string;
+                inProgress: boolean;
+                outcome?:
+                  | { result: any; type: "success" }
+                  | { error: string; type: "error" };
+                startedAt: number;
+                type: "function";
+              }
+            | {
+                deadline: number;
+                durationMs: number;
+                inProgress: boolean;
+                type: "sleep";
+              };
+          stepNumber: number;
+          workflowId: string;
+        }
+      >;
+      runFunction: FunctionReference<
+        "action",
+        "internal",
+        {
+          args: any;
+          functionType: "query" | "mutation" | "action";
+          generationNumber: number;
+          handle: string;
+          journalId: string;
+          workflowId: string;
+        },
+        null
+      >;
+      workflowBlockedBy: FunctionReference<
+        "query",
+        "internal",
+        { workflowId: string },
+        {
+          _creationTime: number;
+          _id: string;
+          step:
+            | {
+                args: any;
+                completedAt?: number;
+                functionType: "query" | "mutation" | "action";
+                handle: string;
+                inProgress: boolean;
+                outcome?:
+                  | { result: any; type: "success" }
+                  | { error: string; type: "error" };
+                startedAt: number;
+                type: "function";
+              }
+            | {
+                deadline: number;
+                durationMs: number;
+                inProgress: boolean;
+                type: "sleep";
+              };
+          stepNumber: number;
+          workflowId: string;
+        } | null
+      >;
+    };
   };
 };

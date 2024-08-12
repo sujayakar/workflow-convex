@@ -1,6 +1,7 @@
 import {
-  ApiFromModules,
   createFunctionHandle,
+  Expand,
+  FilterApi,
   FunctionArgs,
   FunctionReference,
   FunctionReturnType,
@@ -18,25 +19,23 @@ import {
   Validator,
 } from "convex/values";
 import { BaseChannel } from "async-channel";
-import type * as index from "./index.js";
+import type { functions } from "./_generated/api";
 import { Id } from "./_generated/dataModel";
 import { JournalEntry, Step } from "./schema.js";
 
-type MapInternal<T extends Record<string, FunctionReference<any, any>>> = {
-  [K in keyof T]: T[K] extends FunctionReference<
-    infer Type,
-    any,
-    infer Args,
-    infer ReturnType
-  >
-    ? FunctionReference<Type, "internal", Args, ReturnType>
-    : never;
-};
-
-type ComponentClient = MapInternal<
-  ApiFromModules<{
-    index: typeof index;
-  }>["index"]
+type InternalizeApi<API> = Expand<{
+  [mod in keyof API]: API[mod] extends FunctionReference<any, any, any, any>
+    ? FunctionReference<
+        API[mod]["_type"],
+        "internal",
+        API[mod]["_args"],
+        API[mod]["_returnType"],
+        API[mod]["_componentPath"]
+      >
+    : InternalizeApi<API[mod]>;
+}>;
+type InstalledAPI = InternalizeApi<
+  FilterApi<typeof functions, FunctionReference<any, "public", any, any>>
 >;
 
 interface WorkflowStep {
@@ -75,7 +74,7 @@ export type WorkflowDefinition<
 };
 
 export class WorkflowClient {
-  constructor(private client: ComponentClient) {}
+  constructor(private client: InstalledAPI) {}
 
   define<
     ArgsValidator extends PropertyValidators,
@@ -96,7 +95,7 @@ export class WorkflowClient {
     args: FunctionArgs<F>,
   ): Promise<WorkflowId<FunctionReturnType<F>>> {
     const handle = await createFunctionHandle(workflow);
-    const workflowId = await ctx.runMutation(this.client.createWorkflow, {
+    const workflowId = await ctx.runMutation(this.client.ops.createWorkflow, {
       workflowHandle: handle,
       workflowArgs: args,
     });
@@ -112,7 +111,7 @@ export function workflowMutation<
   ArgsValidator extends PropertyValidators,
   ReturnsValidator extends Validator<any, any, any>,
 >(
-  client: ComponentClient,
+  client: InstalledAPI,
   registered: WorkflowDefinition<ArgsValidator, ReturnsValidator>,
 ): RegisteredMutation<"internal", never, never> {
   return internalMutationGeneric({
@@ -135,7 +134,7 @@ export function workflowMutation<
       // -> schedule action that runs function, writes result / schedules poll
       //
       const workflowId = args.workflowId as Id<"workflows">;
-      const workflow = await ctx.runQuery(client.loadWorkflow, {
+      const workflow = await ctx.runQuery(client.ops.loadWorkflow, {
         workflowId,
       });
       if (workflow.generationNumber !== args.generationNumber) {
@@ -146,7 +145,7 @@ export function workflowMutation<
         console.log(`Workflow ${workflowId} completed, returning.`);
         return;
       }
-      const blockedBy = await ctx.runQuery(client.workflowBlockedBy, {
+      const blockedBy = await ctx.runQuery(client.ops.workflowBlockedBy, {
         workflowId,
       });
       if (blockedBy !== null) {
@@ -155,7 +154,7 @@ export function workflowMutation<
         // TODO: reschedule ourselves if needed
         return;
       }
-      const journalEntries = await ctx.runQuery(client.loadJournal, {
+      const journalEntries = await ctx.runQuery(client.ops.loadJournal, {
         workflowId,
       });
       for (const journalEntry of journalEntries) {
@@ -191,7 +190,7 @@ export function workflowMutation<
       const result = await Promise.race([handlerWorker(), executorWorker()]);
       switch (result.type) {
         case "handlerDone": {
-          await ctx.runMutation(client.completeWorkflow, {
+          await ctx.runMutation(client.ops.completeWorkflow, {
             workflowId: workflowId,
             generationNumber: args.generationNumber,
             outcome: result.outcome,
@@ -203,7 +202,7 @@ export function workflowMutation<
           const { _id, step } = result.entry;
           switch (step.type) {
             case "function": {
-              await ctx.scheduler.runAfter(0, client.runFunction, {
+              await ctx.scheduler.runAfter(0, client.ops.runFunction, {
                 workflowId: workflowId,
                 generationNumber: args.generationNumber,
                 journalId: _id,
@@ -216,7 +215,7 @@ export function workflowMutation<
             case "sleep": {
               await ctx.scheduler.runAfter(
                 step.durationMs,
-                client.completeSleep,
+                client.ops.completeSleep,
                 {
                   workflowId: workflowId,
                   generationNumber: args.generationNumber,
@@ -317,7 +316,7 @@ class StepExecutor {
     private workflowId: Id<"workflows">,
 
     private ctx: GenericMutationCtx<GenericDataModel>,
-    private client: ComponentClient,
+    private client: InstalledAPI,
     private journalEntries: Array<JournalEntry>,
     private receiver: BaseChannel<StepRequest>,
   ) {
@@ -413,7 +412,7 @@ class StepExecutor {
         break;
       }
     }
-    const entry = await this.ctx.runMutation(this.client.pushJournalEntry, {
+    const entry = await this.ctx.runMutation(this.client.ops.pushJournalEntry, {
       workflowId: this.workflowId,
       stepNumber,
       step,
